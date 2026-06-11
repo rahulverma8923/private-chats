@@ -9,6 +9,7 @@ const state = {
   localStream: null,
   remoteStream: null,
   currentPeerId: null,
+  pendingOffer: null,
   pendingCandidates: [],
   ignoredOfferFrom: null,
   micEnabled: true,
@@ -65,6 +66,7 @@ const els = {
   noteInput: document.querySelector("#noteInput"),
   voiceButton: document.querySelector("#voiceButton"),
   videoButton: document.querySelector("#videoButton"),
+  acceptCallButton: document.querySelector("#acceptCallButton"),
   muteButton: document.querySelector("#muteButton"),
   cameraButton: document.querySelector("#cameraButton"),
   endCallButton: document.querySelector("#endCallButton"),
@@ -141,6 +143,16 @@ function createPeerConnection() {
 
   pc.ontrack = ({ streams }) => {
     streams[0].getTracks().forEach((track) => state.remoteStream.addTrack(track));
+    els.callStatus.textContent = "Call connected.";
+  };
+
+  pc.onconnectionstatechange = () => {
+    if (pc.connectionState === "connected") {
+      els.callStatus.textContent = "Call connected.";
+    }
+    if (pc.connectionState === "failed" || pc.connectionState === "disconnected") {
+      els.callStatus.textContent = "Connection interrupted. Try ending and calling again.";
+    }
   };
 
   state.localStream?.getTracks().forEach((track) => pc.addTrack(track, state.localStream));
@@ -165,6 +177,11 @@ async function startMedia(video) {
 }
 
 async function startCall(video) {
+  if (state.pendingOffer) {
+    await acceptIncomingCall();
+    return;
+  }
+
   const targetId = peerId();
   if (!targetId) {
     els.callStatus.textContent = "Partner needs to be online first.";
@@ -203,15 +220,14 @@ async function handleSignal({ fromId, fromName, signal }) {
 
     state.ignoredOfferFrom = null;
     state.pendingCandidates = [];
-    const wantsVideo = signal.sdp.includes("m=video");
-    await startMedia(wantsVideo);
-    const pc = createPeerConnection();
-    await pc.setRemoteDescription(signal);
-    await addPendingCandidates();
-    const answer = await pc.createAnswer();
-    await pc.setLocalDescription(answer);
-    emit("call:signal", { targetId: fromId, signal: answer });
-    els.callStatus.textContent = `Connected with ${fromName || "partner"}.`;
+    state.pendingOffer = { fromId, fromName, signal };
+    els.acceptCallButton.classList.remove("hidden");
+    els.callStatus.textContent = `${fromName || "Partner"} is calling. Tap Accept.`;
+    return;
+  }
+
+  if (!state.peerConnection && signal.type === "candidate") {
+    state.pendingCandidates.push(signal.candidate);
     return;
   }
 
@@ -227,12 +243,36 @@ async function handleSignal({ fromId, fromName, signal }) {
   if (signal.type === "candidate") {
     if (state.ignoredOfferFrom === fromId) return;
 
-    if (!state.peerConnection?.remoteDescription) {
+    if (!state.peerConnection.remoteDescription) {
       state.pendingCandidates.push(signal.candidate);
       return;
     }
 
     await state.peerConnection.addIceCandidate(signal.candidate);
+  }
+}
+
+async function acceptIncomingCall() {
+  if (!state.pendingOffer) return;
+
+  const { fromId, fromName, signal } = state.pendingOffer;
+  state.pendingOffer = null;
+  els.acceptCallButton.classList.add("hidden");
+
+  try {
+    const wantsVideo = signal.sdp.includes("m=video");
+    await startMedia(wantsVideo);
+    const pc = createPeerConnection();
+    await pc.setRemoteDescription(signal);
+    await addPendingCandidates();
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+    emit("call:signal", { targetId: fromId, signal: answer });
+    els.callStatus.textContent = `Connected with ${fromName || "partner"}.`;
+  } catch (error) {
+    state.pendingOffer = { fromId, fromName, signal };
+    els.acceptCallButton.classList.remove("hidden");
+    showCallError(error);
   }
 }
 
@@ -252,10 +292,12 @@ function endCall(notify = true) {
   state.localStream = null;
   state.remoteStream = null;
   state.currentPeerId = null;
+  state.pendingOffer = null;
   state.pendingCandidates = [];
   state.ignoredOfferFrom = null;
   els.localVideo.srcObject = null;
   els.remoteVideo.srcObject = null;
+  els.acceptCallButton.classList.add("hidden");
   els.callStatus.textContent = "Call ended.";
   if (notify) emit("call:end");
 }
@@ -332,6 +374,7 @@ document.querySelectorAll(".theme-button").forEach((button) => {
 
 els.voiceButton.addEventListener("click", () => startCall(false).catch(showCallError));
 els.videoButton.addEventListener("click", () => startCall(true).catch(showCallError));
+els.acceptCallButton.addEventListener("click", () => acceptIncomingCall().catch(showCallError));
 els.endCallButton.addEventListener("click", () => endCall(true));
 els.muteButton.addEventListener("click", () => {
   state.micEnabled = !state.micEnabled;
