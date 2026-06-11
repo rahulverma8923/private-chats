@@ -26,17 +26,6 @@ body.light {
   --shadow: rgba(29, 35, 45, 0.12);
 }
 
-body.heart {
-  --bg: #171114;
-  --panel: #21191d;
-  --panel-strong: #31232a;
-  --text: #fff7f7;
-  --muted: #d2b9c2;
-  --line: #4b333e;
-  --accent: #ff6685;
-  --accent-2: #f2b84b;
-}
-
 * {
   box-sizing: border-box;
 }
@@ -396,7 +385,7 @@ video {
 
 .theme-row {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 8px;
 }
 
