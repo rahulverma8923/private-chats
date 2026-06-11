@@ -10,6 +10,7 @@ const state = {
   remoteStream: null,
   currentPeerId: null,
   pendingCandidates: [],
+  ignoredOfferFrom: null,
   micEnabled: true,
   cameraEnabled: true
 };
@@ -98,7 +99,7 @@ function addMessage(message, mine = false) {
   }
 
   if (!mine) {
-    socket.emit("read", { ids: [message.id] });
+    emit("read", { ids: [message.id] });
   }
 }
 
@@ -148,6 +149,14 @@ function createPeerConnection() {
 }
 
 async function startMedia(video) {
+  if (state.localStream) {
+    const hasVideo = state.localStream.getVideoTracks().length > 0;
+    if (!video || hasVideo) {
+      return;
+    }
+    state.localStream.getTracks().forEach((track) => track.stop());
+  }
+
   state.localStream = await navigator.mediaDevices.getUserMedia({
     audio: true,
     video
@@ -163,6 +172,8 @@ async function startCall(video) {
   }
 
   state.currentPeerId = targetId;
+  state.pendingCandidates = [];
+  state.ignoredOfferFrom = null;
   await startMedia(video);
   const pc = createPeerConnection();
   const offer = await pc.createOffer();
@@ -176,10 +187,27 @@ async function handleSignal({ fromId, fromName, signal }) {
   state.currentPeerId = fromId;
 
   if (signal.type === "offer") {
+    const hasOfferCollision = state.peerConnection && state.peerConnection.signalingState !== "stable";
+
+    if (hasOfferCollision && state.id < fromId) {
+      state.ignoredOfferFrom = fromId;
+      return;
+    }
+
+    if (hasOfferCollision) {
+      state.peerConnection.close();
+      state.peerConnection = null;
+      state.remoteStream = null;
+      els.remoteVideo.srcObject = null;
+    }
+
+    state.ignoredOfferFrom = null;
+    state.pendingCandidates = [];
     const wantsVideo = signal.sdp.includes("m=video");
     await startMedia(wantsVideo);
     const pc = createPeerConnection();
     await pc.setRemoteDescription(signal);
+    await addPendingCandidates();
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
     emit("call:signal", { targetId: fromId, signal: answer });
@@ -191,12 +219,29 @@ async function handleSignal({ fromId, fromName, signal }) {
 
   if (signal.type === "answer") {
     await state.peerConnection.setRemoteDescription(signal);
+    await addPendingCandidates();
     els.callStatus.textContent = "Call connected.";
     return;
   }
 
   if (signal.type === "candidate") {
+    if (state.ignoredOfferFrom === fromId) return;
+
+    if (!state.peerConnection?.remoteDescription) {
+      state.pendingCandidates.push(signal.candidate);
+      return;
+    }
+
     await state.peerConnection.addIceCandidate(signal.candidate);
+  }
+}
+
+async function addPendingCandidates() {
+  if (!state.peerConnection?.remoteDescription) return;
+
+  const candidates = state.pendingCandidates.splice(0);
+  for (const candidate of candidates) {
+    await state.peerConnection.addIceCandidate(candidate);
   }
 }
 
@@ -207,6 +252,8 @@ function endCall(notify = true) {
   state.localStream = null;
   state.remoteStream = null;
   state.currentPeerId = null;
+  state.pendingCandidates = [];
+  state.ignoredOfferFrom = null;
   els.localVideo.srcObject = null;
   els.remoteVideo.srcObject = null;
   els.callStatus.textContent = "Call ended.";
