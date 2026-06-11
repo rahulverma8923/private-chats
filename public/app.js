@@ -13,6 +13,8 @@ const state = {
   pendingOffer: null,
   pendingCandidates: [],
   ignoredOfferFrom: null,
+  callStartedAt: null,
+  callTimerId: null,
   micEnabled: true,
   cameraEnabled: true
 };
@@ -83,9 +85,12 @@ const els = {
   muteButton: document.querySelector("#muteButton"),
   cameraButton: document.querySelector("#cameraButton"),
   endCallButton: document.querySelector("#endCallButton"),
+  localPane: document.querySelector("#localPane"),
+  remotePane: document.querySelector("#remotePane"),
   localVideo: document.querySelector("#localVideo"),
   remoteVideo: document.querySelector("#remoteVideo"),
-  callStatus: document.querySelector("#callStatus")
+  callStatus: document.querySelector("#callStatus"),
+  callTimer: document.querySelector("#callTimer")
 };
 
 function setPresence(users) {
@@ -137,6 +142,49 @@ function peerId() {
   return state.users.find((user) => user.id !== state.id)?.id;
 }
 
+function setCallStatus(message, connected = false) {
+  els.callStatus.textContent = message;
+  if (connected) startCallTimer();
+}
+
+function startCallTimer() {
+  if (state.callTimerId) return;
+
+  state.callStartedAt = Date.now();
+  els.callTimer.classList.remove("hidden");
+  updateCallTimer();
+  state.callTimerId = setInterval(updateCallTimer, 1000);
+}
+
+function stopCallTimer() {
+  clearInterval(state.callTimerId);
+  state.callTimerId = null;
+  state.callStartedAt = null;
+  els.callTimer.textContent = "00:00";
+  els.callTimer.setAttribute("datetime", "PT0S");
+  els.callTimer.classList.add("hidden");
+}
+
+function updateCallTimer() {
+  if (!state.callStartedAt) return;
+
+  const totalSeconds = Math.floor((Date.now() - state.callStartedAt) / 1000);
+  const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, "0");
+  const seconds = String(totalSeconds % 60).padStart(2, "0");
+  els.callTimer.textContent = `${minutes}:${seconds}`;
+  els.callTimer.setAttribute("datetime", `PT${totalSeconds}S`);
+}
+
+function setFeaturedVideo(pane) {
+  const showLocal = pane === "local";
+  els.localPane.classList.toggle("featured", showLocal);
+  els.remotePane.classList.toggle("featured", !showLocal);
+  els.localPane.title = showLocal ? "Show your camera in small frame" : "Show your camera in big frame";
+  els.remotePane.title = showLocal ? "Show partner in big frame" : "Show partner in small frame";
+  els.localPane.setAttribute("aria-label", els.localPane.title);
+  els.remotePane.setAttribute("aria-label", els.remotePane.title);
+}
+
 function createPeerConnection() {
   const pc = new RTCPeerConnection({
     iceServers: state.iceServers,
@@ -157,27 +205,27 @@ function createPeerConnection() {
 
   pc.oniceconnectionstatechange = () => {
     if (pc.iceConnectionState === "checking") {
-      els.callStatus.textContent = "Connecting video...";
+      setCallStatus("Connecting call...");
     }
     if (pc.iceConnectionState === "connected" || pc.iceConnectionState === "completed") {
-      els.callStatus.textContent = "Call connected.";
+      setCallStatus("Call connected.", true);
     }
     if (pc.iceConnectionState === "failed") {
-      els.callStatus.textContent = "Video connection failed. Add a TURN server in Render settings.";
+      setCallStatus("Video connection failed. Add a TURN server in Render settings.");
     }
   };
 
   pc.ontrack = ({ streams }) => {
     streams[0].getTracks().forEach((track) => state.remoteStream.addTrack(track));
-    els.callStatus.textContent = "Call connected.";
+    setCallStatus("Call connected.", true);
   };
 
   pc.onconnectionstatechange = () => {
     if (pc.connectionState === "connected") {
-      els.callStatus.textContent = "Call connected.";
+      setCallStatus("Call connected.", true);
     }
     if (pc.connectionState === "failed" || pc.connectionState === "disconnected") {
-      els.callStatus.textContent = "Connection interrupted. Try ending and calling again.";
+      setCallStatus("Connection interrupted. Try ending and calling again.");
     }
   };
 
@@ -223,7 +271,7 @@ async function startCall(video) {
   await pc.setLocalDescription(offer);
   emit("call:ring", { mode: video ? "video" : "voice" });
   emit("call:signal", { targetId, signal: offer });
-  els.callStatus.textContent = video ? "Video call ringing..." : "Voice call ringing...";
+  setCallStatus(video ? "Video call ringing..." : "Voice call ringing...");
 }
 
 async function handleSignal({ fromId, fromName, signal }) {
@@ -248,7 +296,7 @@ async function handleSignal({ fromId, fromName, signal }) {
     state.pendingCandidates = [];
     state.pendingOffer = { fromId, fromName, signal };
     els.acceptCallButton.classList.remove("hidden");
-    els.callStatus.textContent = `${fromName || "Partner"} is calling. Tap Accept.`;
+    setCallStatus(`${fromName || "Partner"} is calling. Tap Accept.`);
     return;
   }
 
@@ -262,7 +310,7 @@ async function handleSignal({ fromId, fromName, signal }) {
   if (signal.type === "answer") {
     await state.peerConnection.setRemoteDescription(signal);
     await addPendingCandidates();
-    els.callStatus.textContent = "Call connected.";
+    setCallStatus("Call connected.", true);
     return;
   }
 
@@ -294,7 +342,7 @@ async function acceptIncomingCall() {
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
     emit("call:signal", { targetId: fromId, signal: answer });
-    els.callStatus.textContent = `Connected with ${fromName || "partner"}.`;
+    setCallStatus(`Connected with ${fromName || "partner"}.`, true);
   } catch (error) {
     state.pendingOffer = { fromId, fromName, signal };
     els.acceptCallButton.classList.remove("hidden");
@@ -324,7 +372,9 @@ function endCall(notify = true) {
   els.localVideo.srcObject = null;
   els.remoteVideo.srcObject = null;
   els.acceptCallButton.classList.add("hidden");
-  els.callStatus.textContent = "Call ended.";
+  stopCallTimer();
+  setFeaturedVideo("remote");
+  setCallStatus("Call ended.");
   if (notify) emit("call:end");
 }
 
@@ -406,6 +456,8 @@ els.voiceButton.addEventListener("click", () => startCall(false).catch(showCallE
 els.videoButton.addEventListener("click", () => startCall(true).catch(showCallError));
 els.acceptCallButton.addEventListener("click", () => acceptIncomingCall().catch(showCallError));
 els.endCallButton.addEventListener("click", () => endCall(true));
+els.localPane.addEventListener("click", () => setFeaturedVideo("local"));
+els.remotePane.addEventListener("click", () => setFeaturedVideo("remote"));
 els.muteButton.addEventListener("click", () => {
   state.micEnabled = !state.micEnabled;
   state.localStream?.getAudioTracks().forEach((track) => { track.enabled = state.micEnabled; });
@@ -424,7 +476,7 @@ els.cameraButton.addEventListener("click", () => {
 });
 
 function showCallError(error) {
-  els.callStatus.textContent = error?.message || "Call could not start.";
+  setCallStatus(error?.message || "Call could not start.");
 }
 
 function handleSocketEvent(event, data) {
