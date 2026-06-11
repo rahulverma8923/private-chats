@@ -5,6 +5,7 @@ const state = {
   socket: null,
   joinResolver: null,
   users: [],
+  iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
   peerConnection: null,
   localStream: null,
   remoteStream: null,
@@ -40,6 +41,18 @@ function connectSocket() {
       els.statusText.textContent = "Disconnected";
     });
   });
+}
+
+async function loadConfig() {
+  try {
+    const response = await fetch("/config", { cache: "no-store" });
+    const config = await response.json();
+    if (Array.isArray(config.iceServers) && config.iceServers.length > 0) {
+      state.iceServers = config.iceServers;
+    }
+  } catch {
+    console.warn("Using default ICE servers");
+  }
 }
 
 function emit(event, data = {}) {
@@ -126,7 +139,8 @@ function peerId() {
 
 function createPeerConnection() {
   const pc = new RTCPeerConnection({
-    iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+    iceServers: state.iceServers,
+    iceTransportPolicy: "all"
   });
 
   state.remoteStream = new MediaStream();
@@ -138,6 +152,18 @@ function createPeerConnection() {
         targetId: state.currentPeerId,
         signal: { type: "candidate", candidate }
       });
+    }
+  };
+
+  pc.oniceconnectionstatechange = () => {
+    if (pc.iceConnectionState === "checking") {
+      els.callStatus.textContent = "Connecting video...";
+    }
+    if (pc.iceConnectionState === "connected" || pc.iceConnectionState === "completed") {
+      els.callStatus.textContent = "Call connected.";
+    }
+    if (pc.iceConnectionState === "failed") {
+      els.callStatus.textContent = "Video connection failed. Add a TURN server in Render settings.";
     }
   };
 
@@ -311,6 +337,7 @@ els.loginForm.addEventListener("submit", async (event) => {
   };
 
   try {
+    await loadConfig();
     await connectSocket();
   } catch (error) {
     els.loginError.textContent = error.message;
@@ -369,6 +396,9 @@ els.noteInput.addEventListener("input", () => {
 document.querySelectorAll(".theme-button").forEach((button) => {
   button.addEventListener("click", () => {
     document.body.className = button.dataset.theme === "dark" ? "" : button.dataset.theme;
+    document.querySelectorAll(".theme-button").forEach((themeButton) => {
+      themeButton.classList.toggle("active", themeButton === button);
+    });
   });
 });
 
@@ -379,12 +409,18 @@ els.endCallButton.addEventListener("click", () => endCall(true));
 els.muteButton.addEventListener("click", () => {
   state.micEnabled = !state.micEnabled;
   state.localStream?.getAudioTracks().forEach((track) => { track.enabled = state.micEnabled; });
-  els.muteButton.textContent = state.micEnabled ? "Mute" : "Unmute";
+  els.muteButton.classList.toggle("active", !state.micEnabled);
+  els.muteButton.setAttribute("aria-pressed", String(!state.micEnabled));
+  els.muteButton.title = state.micEnabled ? "Mute microphone" : "Unmute microphone";
+  els.muteButton.setAttribute("aria-label", els.muteButton.title);
 });
 els.cameraButton.addEventListener("click", () => {
   state.cameraEnabled = !state.cameraEnabled;
   state.localStream?.getVideoTracks().forEach((track) => { track.enabled = state.cameraEnabled; });
-  els.cameraButton.textContent = state.cameraEnabled ? "Camera" : "Camera off";
+  els.cameraButton.classList.toggle("active", !state.cameraEnabled);
+  els.cameraButton.setAttribute("aria-pressed", String(!state.cameraEnabled));
+  els.cameraButton.title = state.cameraEnabled ? "Turn camera off" : "Turn camera on";
+  els.cameraButton.setAttribute("aria-label", els.cameraButton.title);
 });
 
 function showCallError(error) {
