@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: private-couple-chat
+    runtime: node
+    plan: free
+    buildCommand: ""
+    startCommand: node server.js
+    envVars:
+      - key: SECRET_PASSWORD
+        sync: false

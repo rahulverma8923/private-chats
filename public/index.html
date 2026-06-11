@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Our Private Room</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="login-panel" id="loginPanel">
+        <div>
+          <p class="eyebrow">Private space</p>
+          <h1>Our Room</h1>
+          <p class="subtle">Temporary chat, private calls, and no saved message history.</p>
+        </div>
+        <form id="loginForm" class="login-form">
+          <label>
+            Your name
+            <input id="nameInput" autocomplete="nickname" maxlength="24" placeholder="Aarav" required />
+          </label>
+          <label>
+            Room code
+            <input id="roomInput" maxlength="48" value="LOVE-7281" required />
+          </label>
+          <label>
+            Secret password
+            <input id="passwordInput" type="password" autocomplete="current-password" placeholder="Enter secret password" required />
+          </label>
+          <button type="submit">Enter room</button>
+          <p class="error" id="loginError" role="alert"></p>
+        </form>
+      </section>
+
+      <section class="room hidden" id="roomPanel">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Encrypted in transit</p>
+            <h1>Our Room</h1>
+          </div>
+          <div class="presence">
+            <span id="statusDot" class="status-dot"></span>
+            <span id="statusText">Offline</span>
+          </div>
+        </header>
+
+        <section class="call-stage">
+          <video id="remoteVideo" autoplay playsinline></video>
+          <video id="localVideo" autoplay muted playsinline></video>
+          <div class="call-actions">
+            <button id="voiceButton" title="Start voice call">Voice</button>
+            <button id="videoButton" title="Start video call">Video</button>
+            <button id="muteButton" title="Mute microphone">Mute</button>
+            <button id="cameraButton" title="Toggle camera">Camera</button>
+            <button id="endCallButton" class="danger" title="End call">End</button>
+          </div>
+          <p id="callStatus" class="call-status">Ready for private voice or video.</p>
+        </section>
+
+        <section class="workspace">
+          <div class="chat-panel">
+            <div class="messages" id="messages"></div>
+            <p class="typing" id="typing"></p>
+            <form id="messageForm" class="composer">
+              <select id="timerSelect" title="Self destruct timer">
+                <option value="0">Keep</option>
+                <option value="5">5 sec</option>
+                <option value="30">30 sec</option>
+                <option value="60">1 min</option>
+              </select>
+              <input id="messageInput" autocomplete="off" placeholder="Type a message..." maxlength="2000" />
+              <button type="submit">Send</button>
+            </form>
+          </div>
+
+          <aside class="side-panel">
+            <div class="theme-row">
+              <button class="theme-button" data-theme="dark">Dark</button>
+              <button class="theme-button" data-theme="light">Light</button>
+              <button class="theme-button" data-theme="heart">Couple</button>
+            </div>
+            <label class="note-label">
+              Shared temporary note
+              <textarea id="noteInput" placeholder="Movie Saturday 8PM"></textarea>
+            </label>
+            <p class="privacy-note">Messages are only forwarded live. Refresh, logout, or server restart removes them.</p>
+          </aside>
+        </section>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
