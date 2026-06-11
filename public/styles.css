@@ -221,14 +221,51 @@ textarea {
 }
 
 .call-stage {
-  min-height: 290px;
+  min-height: 390px;
   display: grid;
-  grid-template-columns: 1fr 180px;
-  grid-template-rows: 1fr auto auto;
+  grid-template-rows: minmax(260px, 1fr) auto auto;
   gap: 12px;
   padding: 14px;
   margin-bottom: 16px;
   position: relative;
+}
+
+.video-layout {
+  min-height: 260px;
+  position: relative;
+}
+
+.video-pane {
+  background: #07080a;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  cursor: pointer;
+  display: block;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
+  position: absolute;
+}
+
+.video-pane.featured {
+  inset: 0;
+  min-height: 260px;
+  width: 100%;
+  z-index: 1;
+}
+
+.video-pane:not(.featured) {
+  bottom: 12px;
+  box-shadow: 0 16px 34px var(--shadow);
+  height: clamp(104px, 28%, 152px);
+  right: 12px;
+  width: clamp(116px, 25%, 190px);
+  z-index: 2;
+}
+
+.video-pane:hover {
+  border-color: color-mix(in srgb, var(--accent-2) 70%, var(--line));
 }
 
 video {
@@ -236,18 +273,50 @@ video {
   height: 100%;
   min-height: 190px;
   background: #07080a;
-  border-radius: 7px;
   object-fit: cover;
 }
 
 #remoteVideo {
-  border: 1px solid color-mix(in srgb, var(--accent-2) 20%, var(--line));
+  border: 0;
 }
 
 #localVideo {
-  min-height: 130px;
+  border: 0;
+  min-height: 0;
+}
+
+.video-label {
+  background: rgba(0, 0, 0, 0.58);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  bottom: 10px;
+  color: white;
+  font-size: 0.78rem;
+  font-weight: 800;
+  left: 10px;
+  padding: 4px 9px;
+  position: absolute;
+  z-index: 3;
+}
+
+.call-info {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  min-height: 32px;
+}
+
+.call-timer {
+  background: var(--panel-strong);
   border: 1px solid var(--line);
-  box-shadow: 0 12px 30px var(--shadow);
+  border-radius: 999px;
+  color: var(--accent-2);
+  font-variant-numeric: tabular-nums;
+  font-weight: 900;
+  min-width: 76px;
+  padding: 5px 11px;
+  text-align: center;
 }
 
 .call-actions {
@@ -310,7 +379,6 @@ video {
 }
 
 .call-status {
-  grid-column: 1 / -1;
   margin: 0;
 }
 
@@ -411,8 +479,7 @@ video {
 
 @media (max-width: 820px) {
   .login-panel,
-  .workspace,
-  .call-stage {
+  .workspace {
     grid-template-columns: 1fr;
   }
 
@@ -442,5 +509,19 @@ video {
   .send-button {
     min-height: 44px;
     width: 44px;
+  }
+
+  .call-stage {
+    min-height: 350px;
+  }
+
+  .call-info {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .video-pane:not(.featured) {
+    height: 108px;
+    width: 128px;
   }
 }
