@@ -9,6 +9,7 @@
   --accent: #ff6078;
   --accent-2: #51d5b5;
   --danger: #ef4444;
+  --warning: #f0b429;
   --shadow: rgba(0, 0, 0, 0.28);
 }
 
@@ -48,6 +49,10 @@ body {
   color: var(--text);
 }
 
+.icon-sprite {
+  display: none;
+}
+
 button,
 input,
 textarea,
@@ -68,6 +73,34 @@ button {
 
 button:hover {
   filter: brightness(1.05);
+}
+
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--accent-2) 45%, transparent);
+  outline-offset: 2px;
+}
+
+.icon {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex: 0 0 auto;
+}
+
+.primary-action,
+.send-button,
+.theme-button {
+  align-items: center;
+  display: inline-flex;
+  justify-content: center;
+  gap: 9px;
 }
 
 .app-shell {
@@ -206,6 +239,7 @@ textarea {
   gap: 12px;
   padding: 14px;
   margin-bottom: 16px;
+  position: relative;
 }
 
 video {
@@ -217,8 +251,14 @@ video {
   object-fit: cover;
 }
 
+#remoteVideo {
+  border: 1px solid color-mix(in srgb, var(--accent-2) 20%, var(--line));
+}
+
 #localVideo {
   min-height: 130px;
+  border: 1px solid var(--line);
+  box-shadow: 0 12px 30px var(--shadow);
 }
 
 .call-actions {
@@ -226,10 +266,58 @@ video {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  align-items: center;
+  background: color-mix(in srgb, var(--panel-strong) 86%, transparent);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.icon-button,
+.send-button {
+  align-items: center;
+  aspect-ratio: 1;
+  background: var(--panel-strong);
+  border: 1px solid var(--line);
+  color: var(--text);
+  display: inline-flex;
+  justify-content: center;
+  min-height: 46px;
+  padding: 0;
+  width: 46px;
+}
+
+.icon-button:hover,
+.send-button:hover,
+.theme-button:hover {
+  border-color: color-mix(in srgb, var(--accent) 60%, var(--line));
+  color: var(--accent);
+}
+
+.icon-button.accept {
+  background: var(--accent-2);
+  border-color: var(--accent-2);
+  color: #06130f;
+}
+
+.icon-button.active,
+.icon-button[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--warning) 22%, var(--panel-strong));
+  border-color: var(--warning);
+  color: var(--warning);
 }
 
 .danger {
   background: var(--danger);
+  border-color: var(--danger);
+  color: white;
+}
+
+.danger:hover {
+  color: white;
+  filter: brightness(1.08);
 }
 
 .call-status {
@@ -300,6 +388,12 @@ video {
   gap: 16px;
 }
 
+.panel-title {
+  color: var(--text);
+  font-weight: 800;
+  margin: 0 0 -8px;
+}
+
 .theme-row {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -310,6 +404,20 @@ video {
   background: var(--panel-strong);
   color: var(--text);
   border: 1px solid var(--line);
+  min-height: 48px;
+  padding: 0 10px;
+}
+
+.theme-button.active {
+  background: color-mix(in srgb, var(--accent) 16%, var(--panel-strong));
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.theme-button span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 @media (max-width: 820px) {
@@ -334,5 +442,16 @@ video {
 
   .message {
     max-width: 92%;
+  }
+
+  .call-actions {
+    justify-content: center;
+    width: 100%;
+  }
+
+  .icon-button,
+  .send-button {
+    min-height: 44px;
+    width: 44px;
   }
 }
