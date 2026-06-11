@@ -86,9 +86,21 @@
           </div>
         </header>
 
-        <section class="call-stage">
-          <video id="remoteVideo" autoplay playsinline></video>
-          <video id="localVideo" autoplay muted playsinline></video>
+        <section class="call-stage" id="callStage">
+          <div class="video-layout" id="videoLayout">
+            <button type="button" class="video-pane remote-pane featured" id="remotePane" title="Show partner in small frame" aria-label="Show partner in small frame">
+              <video id="remoteVideo" autoplay playsinline></video>
+              <span class="video-label">Partner</span>
+            </button>
+            <button type="button" class="video-pane local-pane" id="localPane" title="Show your camera in big frame" aria-label="Show your camera in big frame">
+              <video id="localVideo" autoplay muted playsinline></video>
+              <span class="video-label">You</span>
+            </button>
+          </div>
+          <div class="call-info">
+            <p id="callStatus" class="call-status">Ready for private voice or video.</p>
+            <time id="callTimer" class="call-timer hidden" datetime="PT0S">00:00</time>
+          </div>
           <div class="call-actions">
             <button id="voiceButton" class="icon-button" title="Start voice call" aria-label="Start voice call">
               <svg class="icon"><use href="#icon-phone"></use></svg>
@@ -109,7 +121,6 @@
               <svg class="icon"><use href="#icon-end"></use></svg>
             </button>
           </div>
-          <p id="callStatus" class="call-status">Ready for private voice or video.</p>
         </section>
 
         <section class="workspace">
