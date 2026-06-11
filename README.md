@@ -22,7 +22,7 @@ http://localhost:3000
 Default password:
 
 ```text
-AaravRiya2026
+-------------
 ```
 
 To set your own password:
