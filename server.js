@@ -7,6 +7,7 @@ const PORT = process.env.PORT || 3000;
 const SECRET_PASSWORD = process.env.SECRET_PASSWORD || "AaravRiya2026";
 const MAX_USERS_PER_ROOM = 2;
 const PUBLIC_DIR = path.join(__dirname, "public");
+const DEFAULT_ICE_SERVERS = [{ urls: "stun:stun.l.google.com:19302" }];
 
 const rooms = new Map();
 const clients = new Map();
@@ -24,6 +25,11 @@ const mimeTypes = {
 const server = http.createServer((req, res) => {
   if (req.url === "/health") {
     sendJson(res, { ok: true });
+    return;
+  }
+
+  if (req.url === "/config") {
+    sendJson(res, { iceServers: getIceServers() });
     return;
   }
 
@@ -97,6 +103,19 @@ function sendJson(res, value) {
   res.end(JSON.stringify(value));
 }
 
+function getIceServers() {
+  if (!process.env.ICE_SERVERS_JSON) {
+    return DEFAULT_ICE_SERVERS;
+  }
+
+  try {
+    const parsed = JSON.parse(process.env.ICE_SERVERS_JSON);
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_ICE_SERVERS;
+  } catch {
+    return DEFAULT_ICE_SERVERS;
+  }
+}
+
 function getRoom(roomId) {
   if (!rooms.has(roomId)) {
     rooms.set(roomId, { users: new Map(), note: "" });
@@ -111,9 +130,19 @@ function publicUsers(room) {
 function send(client, event, data = {}) {
   if (!client.socket.writable) return;
   const payload = Buffer.from(JSON.stringify({ event, data }), "utf8");
-  const header = payload.length < 126
-    ? Buffer.from([0x81, payload.length])
-    : Buffer.from([0x81, 126, payload.length >> 8, payload.length & 255]);
+  let header;
+
+  if (payload.length < 126) {
+    header = Buffer.from([0x81, payload.length]);
+  } else if (payload.length <= 65535) {
+    header = Buffer.from([0x81, 126, payload.length >> 8, payload.length & 255]);
+  } else {
+    header = Buffer.alloc(10);
+    header[0] = 0x81;
+    header[1] = 127;
+    header.writeBigUInt64BE(BigInt(payload.length), 2);
+  }
+
   client.socket.write(Buffer.concat([header, payload]));
 }
 
@@ -141,8 +170,14 @@ function handleSocketData(client, chunk) {
       length = client.buffer.readUInt16BE(2);
       offset = 4;
     } else if (length === 127) {
-      closeClient(client);
-      return;
+      if (client.buffer.length < 10) return;
+      const bigLength = client.buffer.readBigUInt64BE(2);
+      if (bigLength > BigInt(Number.MAX_SAFE_INTEGER)) {
+        closeClient(client);
+        return;
+      }
+      length = Number(bigLength);
+      offset = 10;
     }
 
     const masked = Boolean(secondByte & 0x80);
