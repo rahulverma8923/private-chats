@@ -89,7 +89,8 @@ server.on("upgrade", (req, socket) => {
     socket,
     roomId: null,
     name: null,
-    buffer: Buffer.alloc(0)
+    buffer: Buffer.alloc(0),
+    fragments: []
   };
 
   clients.set(client.id, client);
@@ -146,6 +147,24 @@ function send(client, event, data = {}) {
   client.socket.write(Buffer.concat([header, payload]));
 }
 
+function sendRawFrame(client, opcode, payload = Buffer.alloc(0)) {
+  if (!client.socket.writable) return;
+
+  let header;
+  if (payload.length < 126) {
+    header = Buffer.from([0x80 | opcode, payload.length]);
+  } else if (payload.length <= 65535) {
+    header = Buffer.from([0x80 | opcode, 126, payload.length >> 8, payload.length & 255]);
+  } else {
+    header = Buffer.alloc(10);
+    header[0] = 0x80 | opcode;
+    header[1] = 127;
+    header.writeBigUInt64BE(BigInt(payload.length), 2);
+  }
+
+  client.socket.write(Buffer.concat([header, payload]));
+}
+
 function broadcast(roomId, event, data, exceptId) {
   const room = rooms.get(roomId);
   if (!room) return;
@@ -185,26 +204,50 @@ function handleSocketData(client, chunk) {
     const frameEnd = offset + maskLength + length;
     if (client.buffer.length < frameEnd) return;
 
-    const opcode = client.buffer[0] & 0x0f;
+    const firstByte = client.buffer[0];
+    const fin = Boolean(firstByte & 0x80);
+    const opcode = firstByte & 0x0f;
     const mask = masked ? client.buffer.subarray(offset, offset + 4) : null;
     offset += maskLength;
     const payload = client.buffer.subarray(offset, frameEnd);
     client.buffer = client.buffer.subarray(frameEnd);
-
-    if (opcode === 0x8) {
-      closeClient(client);
-      return;
-    }
-
-    if (opcode !== 0x1) continue;
 
     const decoded = Buffer.alloc(payload.length);
     for (let i = 0; i < payload.length; i += 1) {
       decoded[i] = mask ? payload[i] ^ mask[i % 4] : payload[i];
     }
 
+    if (opcode === 0x8) {
+      closeClient(client);
+      return;
+    }
+
+    if (opcode === 0x9) {
+      sendRawFrame(client, 0xA, decoded);
+      continue;
+    }
+
+    if (opcode === 0xA) continue;
+
+    if (opcode !== 0x1 && opcode !== 0x0) continue;
+
+    if (opcode === 0x1 && !fin) {
+      client.fragments = [decoded];
+      continue;
+    }
+
+    if (opcode === 0x0) {
+      client.fragments.push(decoded);
+      if (!fin) continue;
+    }
+
+    const messageBuffer = client.fragments.length
+      ? Buffer.concat(client.fragments)
+      : decoded;
+    client.fragments = [];
+
     try {
-      const message = JSON.parse(decoded.toString("utf8"));
+      const message = JSON.parse(messageBuffer.toString("utf8"));
       routeEvent(client, message.event, message.data || {});
     } catch {
       send(client, "error", { error: "Invalid message" });
